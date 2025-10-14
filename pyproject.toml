@@ -1,0 +1,14 @@
+[project]
+name = "sioyek-ai"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "openai>=2.1.0",
+    "pyqt5>=5.15.11",
+    "python-dotenv>=1.1.1",
+    "regex>=2025.9.18",
+    "sioyek>=0.31.2",
+    "pymupdf>=1.24",
+]
