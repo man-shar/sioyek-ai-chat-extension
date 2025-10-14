@@ -26,7 +26,7 @@ DEFAULT_MODEL = "gpt-4o-mini"
 SYSTEM_PROMPT = (
     "You assist with reading PDFs. Answer briefly and focus on the selected text."
 )
-LOG_PATH = Path(__file__).resolve().parent.parent / "test.txt"
+LOG_PATH = Path(__file__).resolve().parent.parent / "logs.txt"
 
 
 def _log(message: str) -> None:
@@ -123,9 +123,12 @@ def _convert_selection_to_absolute(
     try:
         document = Document(file_path, None)
         try:
+
             def adjust(pos: DocumentPos):
                 page_width = document.page_widths[pos.page]
-                return DocumentPos(pos.page, pos.offset_x + page_width / 2, pos.offset_y)
+                return DocumentPos(
+                    pos.page, pos.offset_x + page_width / 2, pos.offset_y
+                )
 
             begin_adjusted = adjust(begin_pos)
             end_adjusted = adjust(end_pos)
@@ -206,7 +209,9 @@ def _open_history_window(
     context_snippet: str = "",
 ) -> bool:
     history_summaries = manager.list_sessions_for_document(document_hash)
-    history_payload = [_session_summary_to_dict(summary) for summary in history_summaries]
+    history_payload = [
+        _session_summary_to_dict(summary) for summary in history_summaries
+    ]
 
     app = QtWidgets.QApplication.instance()
     created_app = False
@@ -287,7 +292,7 @@ def _extract_abstract_from_text(text: str) -> Optional[str]:
     match = pattern.search(text)
     if not match:
         return None
-    snippet = text[match.end():]
+    snippet = text[match.end() :]
     terminators = [
         "\n\n",
         "\nIntroduction",
@@ -747,7 +752,9 @@ def _execute(argv: list[str]) -> int:
         def on_history_selected(requested_id: int) -> None:
             summary = manager.get_session_summary(requested_id)
             messages_list = manager.get_messages(requested_id)
-            answer_text = _join_assistant_messages(messages_list) or summary.answer_preview
+            answer_text = (
+                _join_assistant_messages(messages_list) or summary.answer_preview
+            )
             question_value = _first_user_message(messages_list, summary.question)
             dialog.display_session(
                 selection_text=summary.selection_text,
