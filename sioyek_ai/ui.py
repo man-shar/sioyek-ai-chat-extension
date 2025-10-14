@@ -9,6 +9,69 @@ from typing import Iterable, Mapping, Optional
 from PyQt5 import QtCore, QtWidgets
 
 
+class CollapsibleSection(QtWidgets.QWidget):
+    """Reusable collapsible container with a header toggle."""
+
+    toggled = QtCore.pyqtSignal(bool)
+
+    def __init__(
+        self, title: str, parent: QtWidgets.QWidget | None = None, expanded: bool = False
+    ) -> None:
+        super().__init__(parent)
+        self._toggle = QtWidgets.QToolButton(text=title)
+        self._toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+        self._toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
+        self._toggle.setCheckable(True)
+        self._toggle.setChecked(expanded)
+        self._toggle.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+        )
+        self._toggle.setStyleSheet("QToolButton { border: none; font-weight: bold; }")
+        self._toggle.clicked.connect(self._on_clicked)
+
+        self._content = QtWidgets.QWidget()
+        self._content.setVisible(expanded)
+        self._content_layout = QtWidgets.QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(8, 4, 0, 0)
+        self._content_layout.setSpacing(6)
+
+        root_layout = QtWidgets.QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(4)
+        root_layout.addWidget(self._toggle)
+        root_layout.addWidget(self._content)
+
+    def content_layout(self) -> QtWidgets.QVBoxLayout:
+        return self._content_layout
+
+    def is_expanded(self) -> bool:
+        return self._content.isVisible()
+
+    def set_expanded(self, expanded: bool) -> None:
+        currently = self._content.isVisible()
+        if currently == expanded:
+            self._toggle.setChecked(expanded)
+            self._toggle.setArrowType(
+                QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow
+            )
+            return
+        self._toggle.setChecked(expanded)
+        self._content.setVisible(expanded)
+        self._toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
+        self.toggled.emit(expanded)
+
+    def setEnabled(self, enabled: bool) -> None:  # noqa: D401 - Qt override
+        super().setEnabled(enabled)
+        self._toggle.setEnabled(enabled)
+        if not enabled:
+            self._content.setVisible(False)
+            self._toggle.setChecked(False)
+            self._toggle.setArrowType(QtCore.Qt.RightArrow)
+
+    def _on_clicked(self, checked: bool) -> None:
+        self.set_expanded(checked)
+
+
 class ResponseDialog(QtWidgets.QDialog):
     """Dialog showing the active response alongside previous sessions."""
 
@@ -77,24 +140,27 @@ class ResponseDialog(QtWidgets.QDialog):
         self.status_label = QtWidgets.QLabel("Waiting for response…")
         right_layout.addWidget(self.status_label)
 
-        self.context_group = QtWidgets.QGroupBox("Context Passed")
-        self.context_group.setCheckable(True)
-        self.context_group.setChecked(False)
-        context_layout = QtWidgets.QVBoxLayout(self.context_group)
-        context_layout.setContentsMargins(8, 8, 8, 8)
-        context_layout.setSpacing(6)
+        self.context_section = CollapsibleSection("Context Passed", expanded=False)
+        context_layout = self.context_section.content_layout()
 
         self.metadata_label = QtWidgets.QLabel("")
         self.metadata_label.setWordWrap(True)
         self.metadata_label.setTextFormat(QtCore.Qt.RichText)
         context_layout.addWidget(self.metadata_label)
 
-        self.context_field = QtWidgets.QPlainTextEdit("(empty)")
+        self.context_placeholder = QtWidgets.QLabel("<i>No context snippet provided.</i>")
+        self.context_placeholder.setTextFormat(QtCore.Qt.RichText)
+        self.context_placeholder.setWordWrap(True)
+        context_layout.addWidget(self.context_placeholder)
+
+        self.context_field = QtWidgets.QPlainTextEdit("")
         self.context_field.setReadOnly(True)
         self.context_field.setLineWrapMode(QtWidgets.QPlainTextEdit.WidgetWidth)
         context_layout.addWidget(self.context_field)
+        self.context_placeholder.hide()
+        self.context_field.hide()
 
-        right_layout.addWidget(self.context_group)
+        right_layout.addWidget(self.context_section)
 
         button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
         button_box.rejected.connect(self.reject)
@@ -103,7 +169,13 @@ class ResponseDialog(QtWidgets.QDialog):
 
         right_layout.setStretchFactor(content_splitter, 1)
 
-        outer_splitter.addWidget(right_container)
+        right_scroll = QtWidgets.QScrollArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        right_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        right_scroll.setWidget(right_container)
+
+        outer_splitter.addWidget(right_scroll)
         outer_splitter.setStretchFactor(0, 0)
         outer_splitter.setStretchFactor(1, 1)
         layout.addWidget(outer_splitter)
@@ -114,6 +186,7 @@ class ResponseDialog(QtWidgets.QDialog):
             self.set_history(history)
 
         self._streaming_locked = False
+        self._context_initialized = False
 
     # ------------------------------------------------------------------
     # History helpers
@@ -261,10 +334,11 @@ class ResponseDialog(QtWidgets.QDialog):
     def set_context(self, metadata: Mapping[str, str], snippet: str) -> None:
         snippet = snippet.strip()
         if not metadata and not snippet:
-            self.context_group.setChecked(False)
-            self.context_group.setEnabled(False)
             self.metadata_label.setText("<i>No additional context provided.</i>")
-            self.context_field.setPlainText("(empty)")
+            self.context_placeholder.hide()
+            self.context_field.hide()
+            self.context_section.setEnabled(False)
+            self._context_initialized = False
             return
 
         lines = []
@@ -273,10 +347,20 @@ class ResponseDialog(QtWidgets.QDialog):
                 lines.append(f"<b>{html.escape(str(key).title())}:</b> {html.escape(str(value))}")
         metadata_html = "<br/>".join(lines) if lines else "<i>No metadata available.</i>"
         self.metadata_label.setText(metadata_html)
-        self.context_field.setPlainText(snippet or "(empty)")
-        self.context_group.setEnabled(True)
-        if snippet or metadata_html:
-            self.context_group.setChecked(True)
+        if snippet:
+            self.context_field.setPlainText(snippet)
+            self.context_field.show()
+            self.context_placeholder.hide()
+        else:
+            self.context_field.hide()
+            self.context_placeholder.show()
+        was_expanded = self.context_section.is_expanded()
+        self.context_section.setEnabled(True)
+        if not self._context_initialized:
+            self.context_section.set_expanded(False)
+        else:
+            self.context_section.set_expanded(was_expanded)
+        self._context_initialized = True
 
 
 def show_response_dialog(data: Mapping[str, str]) -> None:

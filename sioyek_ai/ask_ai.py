@@ -124,16 +124,14 @@ def _convert_selection_to_absolute(
         document = Document(file_path, None)
         try:
 
-            def adjust(pos: DocumentPos):
+            def adjust(pos: DocumentPos) -> DocumentPos:
                 page_width = document.page_widths[pos.page]
                 return DocumentPos(
-                    pos.page, pos.offset_x + page_width / 2, pos.offset_y
+                    pos.page, pos.offset_x - (page_width / 2.0), pos.offset_y
                 )
 
-            begin_adjusted = adjust(begin_pos)
-            end_adjusted = adjust(end_pos)
-            begin_abs = document.to_absolute(begin_adjusted)
-            end_abs = document.to_absolute(end_adjusted)
+            begin_abs = document.to_absolute(adjust(begin_pos))
+            end_abs = document.to_absolute(adjust(end_pos))
         finally:
             document.close()
     except Exception as exc:
