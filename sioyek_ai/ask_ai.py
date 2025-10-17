@@ -205,6 +205,8 @@ def _open_history_window(
     active_session_id: Optional[int] = None,
     metadata: Optional[Dict[str, str]] = None,
     context_snippet: str = "",
+    notification_message: Optional[str] = None,
+    notification_timeout_ms: int = 5000,
 ) -> bool:
     history_summaries = manager.list_sessions_for_document(document_hash)
     history_payload = [
@@ -228,6 +230,8 @@ def _open_history_window(
     )
     dialog.set_history(history_payload, active_session_id=active_session_id)
     dialog.set_streaming_locked(False)
+    if notification_message:
+        dialog.show_notification(notification_message, timeout_ms=notification_timeout_ms)
 
     def show_session(session_id: int) -> None:
         summary = manager.get_session_summary(session_id)

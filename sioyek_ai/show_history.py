@@ -96,27 +96,52 @@ def main(argv: list[str]) -> int:
                         require_ai=True,
                     )
 
+                    session = manager.get_session_by_highlight(highlight.id) if highlight else None
+
+                    selection_text = ""
+                    question_text = ""
+                    status_message = "Viewing saved conversation."
+                    active_session_id = None
+                    metadata = {}
+                    context_snippet = ""
+                    notification_message = None
+
                     if highlight is None:
-                        set_status(sioyek_path, "AI history: no saved chat at this location")
-                        return 1
+                        notification_message = (
+                            "No AI highlight found near that click. Showing document history."
+                        )
+                        status_message = "No saved conversation near this location."
+                    elif session is None:
+                        notification_message = (
+                            "That highlight has no saved chat yet. Showing document history."
+                        )
+                        status_message = "No chat recorded for this highlight."
+                        selection_text = highlight.desc or ""
+                    else:
+                        selection_text = session.selection_text
+                        question_text = session.question
+                        active_session_id = session.id
+                        metadata = session.metadata or {}
+                        context_snippet = session.context_snippet or ""
 
-                    session = manager.get_session_by_highlight(highlight.id)
-                    if session is None:
-                        set_status(sioyek_path, "AI history: no chat recorded for this highlight")
-                        return 1
-
-                    _open_history_window(
+                    has_history = _open_history_window(
                         manager,
                         file_path=file_path,
                         document_hash=document_hash,
-                        selection_text=session.selection_text,
-                        question_text=session.question,
-                        status_message="Viewing saved conversation.",
-                        active_session_id=session.id,
-                        metadata=session.metadata,
-                        context_snippet=session.context_snippet,
+                        selection_text=selection_text,
+                        question_text=question_text,
+                        status_message=status_message,
+                        active_session_id=active_session_id,
+                        metadata=metadata,
+                        context_snippet=context_snippet,
+                        notification_message=notification_message,
                     )
-                    set_status(sioyek_path, "AI history opened")
+                    if notification_message:
+                        set_status(sioyek_path, notification_message)
+                    elif has_history:
+                        set_status(sioyek_path, "AI history opened")
+                    else:
+                        set_status(sioyek_path, "AI history: no saved conversations yet")
                     return 0
                 finally:
                     manager.close()

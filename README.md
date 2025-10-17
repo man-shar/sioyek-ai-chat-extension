@@ -72,7 +72,7 @@ If no text is selected or the API call fails, the status bar and `logs.txt` incl
 
 ### `_show_ai_history` (Shift-click shortcut)
 
-Assigning `shift_click_command _show_ai_history` lets you Shift-click anywhere in the document to pop open the history dialog for the closest AI highlight. The script uses `%{mouse_pos_document}` to match highlights, and only highlights tagged with `is_ai = 1` are considered—so manual highlights stay untouched.
+Assigning `shift_click_command _show_ai_history` lets you Shift-click anywhere in the document to pop open the history dialog for the closest AI highlight. The script uses `%{mouse_pos_document}` to match highlights, and only highlights tagged with `is_ai = 1` are considered—so manual highlights stay untouched. If no AI highlight is nearby, the history window still opens and shows the document history, with a brief notice at the top that fades after a few seconds.
 
 ## Local testing
 

@@ -6,7 +6,7 @@ import html
 import sys
 from typing import Iterable, Mapping, Optional
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class CollapsibleSection(QtWidgets.QWidget):
@@ -15,12 +15,17 @@ class CollapsibleSection(QtWidgets.QWidget):
     toggled = QtCore.pyqtSignal(bool)
 
     def __init__(
-        self, title: str, parent: QtWidgets.QWidget | None = None, expanded: bool = False
+        self,
+        title: str,
+        parent: QtWidgets.QWidget | None = None,
+        expanded: bool = False,
     ) -> None:
         super().__init__(parent)
         self._toggle = QtWidgets.QToolButton(text=title)
         self._toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
-        self._toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
+        self._toggle.setArrowType(
+            QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow
+        )
         self._toggle.setCheckable(True)
         self._toggle.setChecked(expanded)
         self._toggle.setSizePolicy(
@@ -57,7 +62,9 @@ class CollapsibleSection(QtWidgets.QWidget):
             return
         self._toggle.setChecked(expanded)
         self._content.setVisible(expanded)
-        self._toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
+        self._toggle.setArrowType(
+            QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow
+        )
         self.toggled.emit(expanded)
 
     def setEnabled(self, enabled: bool) -> None:  # noqa: D401 - Qt override
@@ -87,8 +94,36 @@ class ResponseDialog(QtWidgets.QDialog):
         self.setWindowTitle("Sioyek AI Helper")
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self._history_items: dict[int, QtWidgets.QListWidgetItem] = {}
+        self._notification_timer = QtCore.QTimer(self)
+        self._notification_timer.setSingleShot(True)
+        self._notification_timer.timeout.connect(self.hide_notification)
 
         layout = QtWidgets.QVBoxLayout(self)
+
+        self._notification_label = QtWidgets.QLabel("")
+        self._notification_label.setObjectName("notificationLabel")
+        self._notification_label.setWordWrap(False)
+        self._notification_label.setTextFormat(QtCore.Qt.PlainText)
+        self._notification_label.setVisible(False)
+        self._notification_label.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self._notification_label.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+        )
+        self._notification_label.setStyleSheet(
+            "QLabel#notificationLabel {"
+            " color: #5a4200;"
+            " background-color: #fff6d5;"
+            " border: 1px solid #f0c36d;"
+            " border-radius: 4px;"
+            " padding: 3px 8px;"
+            " margin: 0 0 4px 0;"
+            " font-size: 11px;"
+            "}"
+        )
+        self._notification_label.setMinimumHeight(
+            self._notification_label.fontMetrics().height() + 6
+        )
+        layout.addWidget(self._notification_label)
 
         outer_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
         history_container = QtWidgets.QWidget()
@@ -102,7 +137,9 @@ class ResponseDialog(QtWidgets.QDialog):
 
         self.history_list = QtWidgets.QListWidget()
         self.history_list.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self.history_list.itemSelectionChanged.connect(self._on_history_selection_changed)
+        self.history_list.itemSelectionChanged.connect(
+            self._on_history_selection_changed
+        )
         self.history_list.setMinimumWidth(220)
         history_layout.addWidget(self.history_list)
         outer_splitter.addWidget(history_container)
@@ -148,7 +185,9 @@ class ResponseDialog(QtWidgets.QDialog):
         self.metadata_label.setTextFormat(QtCore.Qt.RichText)
         context_layout.addWidget(self.metadata_label)
 
-        self.context_placeholder = QtWidgets.QLabel("<i>No context snippet provided.</i>")
+        self.context_placeholder = QtWidgets.QLabel(
+            "<i>No context snippet provided.</i>"
+        )
         self.context_placeholder.setTextFormat(QtCore.Qt.RichText)
         self.context_placeholder.setWordWrap(True)
         context_layout.addWidget(self.context_placeholder)
@@ -187,6 +226,7 @@ class ResponseDialog(QtWidgets.QDialog):
 
         self._streaming_locked = False
         self._context_initialized = False
+        self._notification_text: str = ""
 
     # ------------------------------------------------------------------
     # History helpers
@@ -268,6 +308,28 @@ class ResponseDialog(QtWidgets.QDialog):
     def reset_answer(self, text: str = "") -> None:
         self._set_text(self.answer_field, text)
 
+    # ------------------------------------------------------------------
+    # Notifications
+    # ------------------------------------------------------------------
+    def show_notification(self, message: str, timeout_ms: int = 5000) -> None:
+        if not message:
+            self.hide_notification()
+            return
+        self._notification_text = message
+        self._update_notification_elision()
+        self._notification_label.setToolTip(message)
+        self._notification_label.setVisible(True)
+        self._notification_timer.stop()
+        QtCore.QTimer.singleShot(0, self._update_notification_elision)
+        if timeout_ms > 0:
+            self._notification_timer.start(timeout_ms)
+
+    def hide_notification(self) -> None:
+        self._notification_timer.stop()
+        self._notification_text = ""
+        self._notification_label.clear()
+        self._notification_label.setVisible(False)
+
     def set_status_message(self, message: str) -> None:
         self.status_label.setText(message)
 
@@ -344,8 +406,12 @@ class ResponseDialog(QtWidgets.QDialog):
         lines = []
         for key, value in metadata.items():
             if value:
-                lines.append(f"<b>{html.escape(str(key).title())}:</b> {html.escape(str(value))}")
-        metadata_html = "<br/>".join(lines) if lines else "<i>No metadata available.</i>"
+                lines.append(
+                    f"<b>{html.escape(str(key).title())}:</b> {html.escape(str(value))}"
+                )
+        metadata_html = (
+            "<br/>".join(lines) if lines else "<i>No metadata available.</i>"
+        )
         self.metadata_label.setText(metadata_html)
         if snippet:
             self.context_field.setPlainText(snippet)
@@ -361,6 +427,24 @@ class ResponseDialog(QtWidgets.QDialog):
         else:
             self.context_section.set_expanded(was_expanded)
         self._context_initialized = True
+
+    # ------------------------------------------------------------------
+    # Event handlers
+    # ------------------------------------------------------------------
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:  # type: ignore[override]
+        super().resizeEvent(event)
+        if self._notification_label.isVisible() and self._notification_text:
+            self._update_notification_elision()
+
+    def _update_notification_elision(self) -> None:
+        if not self._notification_text:
+            return
+        available_width = max(16, self._notification_label.width() - 12)
+        metrics = self._notification_label.fontMetrics()
+        elided = metrics.elidedText(
+            self._notification_text, QtCore.Qt.ElideRight, available_width
+        )
+        self._notification_label.setText(elided)
 
 
 def show_response_dialog(data: Mapping[str, str]) -> None:
