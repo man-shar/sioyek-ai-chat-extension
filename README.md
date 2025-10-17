@@ -1,10 +1,12 @@
 # sioyek-ai
 
+(Almost all of the code + docs here written by Codex. I am no Qt expert.)
+
 Python helper that streams highlighted passages from sioyek to OpenAI, shows the reply in a PyQt window, stores the conversation in sioyek's databases, and marks the source text with a dedicated highlight colour.
 
 ### Database changes (heads-up)
 
-- The first run calls `ALTER TABLE highlights ADD COLUMN is_ai INTEGER DEFAULT 0` on `shared.db`. Back up your Sioyek databases if you need to preserve their pristine schema.
+- The first run calls `ALTER TABLE highlights ADD COLUMN is_ai INTEGER DEFAULT 0` on `shared.db`. Back up your Sioyek databases if you need to preserve their schema.
 - Every AI-assisted highlight writes to the existing `highlights` table: reused highlights get `is_ai = 1`, and new ones are created with type `v`. Manual highlights stay untouched unless you later reuse them for AI.
 
 ## Features
